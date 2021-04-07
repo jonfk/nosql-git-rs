@@ -1,7 +1,8 @@
 use anyhow::Result;
 use clap::{AppSettings, Clap};
+use commit::ToCommit;
 use git2::Repository;
-use git_ops::{clone, log};
+use git_ops::{clone, commit, log};
 
 #[derive(Clap, Debug)]
 #[clap(version = "1.0", author = "Jonfk <jfokkan@gmail.com>")]
@@ -13,8 +14,16 @@ pub struct Opts {
 
 #[derive(Clap, Debug)]
 pub enum SubCommand {
-    Clone { url: String, path: Option<String> },
+    Clone {
+        url: String,
+        path: Option<String>,
+    },
     Log {},
+    Commit {
+        path: String,
+        #[clap(short, long)]
+        message: String,
+    },
 }
 
 fn main() -> Result<()> {
@@ -29,6 +38,17 @@ fn main() -> Result<()> {
         SubCommand::Log {} => {
             let repo = Repository::open(".")?;
             log::git_log(repo)?;
+            Ok(())
+        }
+        SubCommand::Commit { path, message } => {
+            let repo = Repository::open(".")?;
+            commit::commit(
+                &repo,
+                &ToCommit {
+                    path: path,
+                    message: message,
+                },
+            )?;
             Ok(())
         }
     };
