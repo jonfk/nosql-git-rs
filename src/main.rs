@@ -2,6 +2,7 @@ use anyhow::Result;
 use clap::{AppSettings, Clap};
 use commit::ToCommit;
 use git2::Repository;
+use git_ops::commit_to_branch::{self, CommitToBranch};
 use git_ops::{clone, commit, log};
 
 #[derive(Clap, Debug)]
@@ -23,6 +24,15 @@ pub enum SubCommand {
         path: String,
         #[clap(short, long)]
         message: String,
+    },
+    CommitToBranch {
+        path: String,
+        #[clap(short, long)]
+        message: String,
+        #[clap(short, long)]
+        data: String,
+        #[clap(short, long)]
+        branch: String,
     },
 }
 
@@ -50,6 +60,24 @@ fn main() -> Result<()> {
                 },
             )?;
 
+            Ok(())
+        }
+        SubCommand::CommitToBranch {
+            path,
+            message,
+            data,
+            branch,
+        } => {
+            let repo = Repository::open(".")?;
+            commit_to_branch::commit_to_branch(
+                &CommitToBranch {
+                    path: path,
+                    message: message,
+                    data: data,
+                    branch_name: branch,
+                },
+                &repo,
+            )?;
             Ok(())
         }
     };

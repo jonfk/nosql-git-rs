@@ -55,7 +55,7 @@ pub fn author_committer() -> Result<Signature<'static>> {
     Ok(Signature::now("Jonathan Fok kan", "jfokkan@gmail.com")?)
 }
 
-fn make_index_entry(path: &str) -> IndexEntry {
+pub fn make_index_entry(path: &str) -> IndexEntry {
     IndexEntry {
         ctime: IndexTime::new(0, 0),
         mtime: IndexTime::new(0, 0),
