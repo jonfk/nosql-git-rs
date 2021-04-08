@@ -1,6 +1,6 @@
 use anyhow::Result;
 use git2::{FileMode, IndexEntry, IndexTime, Oid, Repository, Signature};
-use std::{fs, io, path::PathBuf};
+use std::{fs, path::PathBuf};
 
 pub struct ToCommit {
     pub message: String,

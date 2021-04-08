@@ -49,6 +49,7 @@ fn main() -> Result<()> {
                     message: message,
                 },
             )?;
+
             Ok(())
         }
     };
