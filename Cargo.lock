@@ -738,6 +738,7 @@ dependencies = [
  "chrono",
  "clap",
  "git2",
+ "parking_lot",
  "serde",
  "serde_json",
 ]

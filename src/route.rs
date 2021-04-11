@@ -1,8 +1,7 @@
-use std::sync::Arc;
-
-use actix_web::{get, web, HttpResponse};
-
 use crate::GitDataStore;
+use actix_web::{get, put, web, HttpResponse};
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 #[get("/{commit_id}/{file_path:.*}")]
 pub async fn get_data(
@@ -13,4 +12,28 @@ pub async fn get_data(
     let git_data = store.read(&commit_id, &file_path);
 
     HttpResponse::Ok().json(git_data)
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct PutDataReq {
+    data: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct PutDataResp {
+    commit_id: String,
+}
+
+#[put("/{commit_id}/{file_path:.*}")]
+pub async fn put_data(
+    store: web::Data<Arc<GitDataStore>>,
+    path_params: web::Path<(String, String)>,
+    data: web::Json<PutDataReq>,
+) -> HttpResponse {
+    let (commit_id, file_path) = path_params.into_inner();
+    let new_commit_id = store.put(&commit_id, &file_path, &data.data);
+
+    HttpResponse::Ok().json(PutDataResp {
+        commit_id: new_commit_id,
+    })
 }
