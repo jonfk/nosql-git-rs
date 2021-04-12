@@ -9,7 +9,7 @@ pub async fn get_data(
     path_params: web::Path<(String, String)>,
 ) -> HttpResponse {
     let (commit_id, file_path) = path_params.into_inner();
-    let git_data = store.read(&commit_id, &file_path);
+    let git_data = store.read(&commit_id, &file_path).expect("store.read");
 
     HttpResponse::Ok().json(git_data)
 }
