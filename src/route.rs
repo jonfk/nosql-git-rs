@@ -1,4 +1,4 @@
-use crate::GitDataStore;
+use crate::{error::GitDataStoreError, GitDataStore};
 use actix_web::{get, put, web, HttpResponse};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -7,11 +7,11 @@ use std::sync::Arc;
 pub async fn get_data(
     store: web::Data<Arc<GitDataStore>>,
     path_params: web::Path<(String, String)>,
-) -> HttpResponse {
+) -> Result<HttpResponse, GitDataStoreError> {
     let (commit_id, file_path) = path_params.into_inner();
-    let git_data = store.read(&commit_id, &file_path).expect("store.read");
+    let git_data = store.read(&commit_id, &file_path)?;
 
-    HttpResponse::Ok().json(git_data)
+    Ok(HttpResponse::Ok().json(git_data))
 }
 
 #[derive(Serialize, Deserialize)]
