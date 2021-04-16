@@ -18,6 +18,11 @@ pub struct GitDataStore {
 }
 
 #[derive(Serialize)]
+pub struct GitEntry {
+    data: GitData,
+    commit_id: String,
+}
+#[derive(Serialize)]
 pub enum GitData {
     Dir { entries: Vec<String> },
     File { data: String },
@@ -32,9 +37,18 @@ impl GitDataStore {
         }
     }
 
-    pub fn read(&self, commit_id: &str, path: &str) -> Result<GitData, GitDataStoreError> {
+    pub fn read_latest(&self, path: &str) -> Result<GitEntry, GitDataStoreError> {
+        let repo = Repository::open(&self.repo_path)?;
+        let main_ref = repo.find_reference(&format!("refs/heads/{}", self.primary_branch))?;
+        let commit = main_ref.peel_to_commit()?;
+
+        read_entry_from_tree(&repo, &commit, path)
+    }
+
+    pub fn read(&self, commit_id: &str, path: &str) -> Result<GitEntry, GitDataStoreError> {
         let repo = Repository::open(&self.repo_path)?;
 
+        // TODO allow rev spec
         let commit = repo
             .find_commit(
                 Oid::from_str(commit_id)
@@ -42,45 +56,8 @@ impl GitDataStore {
             )
             .map_err(|_e| GitDataStoreError::RevNotFound(commit_id.to_string()))?;
 
-        let tree = commit.tree()?;
-
-        let entry = tree
-            .get_path(Path::new(path))
-            .map_err(|e| GitDataStoreError::PathNotFound(path.to_string(), e))?;
-
-        let git_data = match entry.kind().expect("tree entry does not have kind") {
-            git2::ObjectType::Tree => {
-                let obj = entry.to_object(&repo)?;
-                let tree = obj.as_tree().expect("tree is not a tree");
-                GitData::Dir {
-                    entries: tree
-                        .into_iter()
-                        .filter_map(|e| e.name().map(|name| name.to_string()))
-                        .collect(),
-                }
-            }
-            git2::ObjectType::Blob => {
-                let obj = entry.to_object(&repo)?;
-                let blob = obj.as_blob().expect("blob is not blob");
-
-                // Should non-utf8 data be returned as base-64 encoded?
-                GitData::File {
-                    data: String::from_utf8(blob.content().to_owned()).map_err(|_e| {
-                        GitDataStoreError::NonUtf8Blob {
-                            commit_id: commit.id().to_string(),
-                            path: path.to_string(),
-                        }
-                    })?,
-                }
-            }
-            _ => {
-                unreachable!("Impossible entry.kind() {:?}", entry.kind())
-            }
-        };
-
-        Ok(git_data)
+        read_entry_from_tree(&repo, &commit, path)
     }
-
     pub fn put(&self, parent_rev_id: &str, path: &str, data: &str) -> String {
         // get index, create commit from parent commit
         // merge commit with current commit of primary branch
@@ -206,4 +183,50 @@ pub fn create_branch<'repo>(
         "creating branch",
     )
     .expect("create reference")
+}
+
+fn read_entry_from_tree(
+    repo: &Repository,
+    commit: &git2::Commit,
+    path: &str,
+) -> Result<GitEntry, GitDataStoreError> {
+    let tree = commit.tree()?;
+    let entry = tree
+        .get_path(Path::new(path))
+        .map_err(|e| GitDataStoreError::PathNotFound(path.to_string(), e))?;
+
+    let git_data = match entry.kind().expect("tree entry does not have kind") {
+        git2::ObjectType::Tree => {
+            let obj = entry.to_object(&repo)?;
+            let tree = obj.as_tree().expect("tree is not a tree");
+            GitData::Dir {
+                entries: tree
+                    .into_iter()
+                    .filter_map(|e| e.name().map(|name| name.to_string()))
+                    .collect(),
+            }
+        }
+        git2::ObjectType::Blob => {
+            let obj = entry.to_object(&repo)?;
+            let blob = obj.as_blob().expect("blob is not blob");
+
+            // Should non-utf8 data be returned as base-64 encoded?
+            GitData::File {
+                data: String::from_utf8(blob.content().to_owned()).map_err(|_e| {
+                    GitDataStoreError::NonUtf8Blob {
+                        commit_id: commit.id().to_string(),
+                        path: path.to_string(),
+                    }
+                })?,
+            }
+        }
+        _ => {
+            unreachable!("Impossible entry.kind() {:?}", entry.kind())
+        }
+    };
+
+    Ok(GitEntry {
+        data: git_data,
+        commit_id: commit.id().to_string(),
+    })
 }
