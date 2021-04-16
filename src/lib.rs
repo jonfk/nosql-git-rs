@@ -58,7 +58,13 @@ impl GitDataStore {
 
         read_entry_from_tree(&repo, &commit, path)
     }
-    pub fn put(&self, parent_rev_id: &str, path: &str, data: &str) -> String {
+    pub fn put(
+        &self,
+        parent_rev_id: &str,
+        path: &str,
+        data: &str,
+        resolve_conflicts_in_our_favor: bool,
+    ) -> String {
         // get index, create commit from parent commit
         // merge commit with current commit of primary branch
         // update primary branch
@@ -122,7 +128,12 @@ impl GitDataStore {
         } else {
             // merge commits
             let our_commit = repo.find_commit(commit_id).expect("repo.find_commit");
-            let merge_options = MergeOptions::new();
+            let mut merge_options = MergeOptions::new();
+
+            if resolve_conflicts_in_our_favor {
+                merge_options.file_favor(git2::FileFavor::Ours);
+            }
+
             let mut merge_index = repo
                 .merge_commits(&our_commit, &head_commit, Some(&merge_options))
                 .expect("merge_commits");
