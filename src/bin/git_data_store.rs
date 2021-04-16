@@ -1,6 +1,12 @@
+#[macro_use]
+extern crate slog;
+extern crate slog_async;
+extern crate slog_term;
+
 use actix_web::{middleware::Logger, App, HttpServer};
 use clap::Clap;
 use git_ops::{route, GitDataStore};
+use slog::Drain;
 use std::sync::Arc;
 
 #[derive(Clap, Debug)]
@@ -16,6 +22,13 @@ pub struct Config {
 
 #[actix_web::main]
 pub async fn main() -> std::io::Result<()> {
+    let decorator = slog_term::TermDecorator::new().build();
+    let drain = slog_term::FullFormat::new(decorator).build().fuse();
+    let drain = slog_async::Async::new(drain).build().fuse();
+
+    let _log = slog::Logger::root(drain, o!());
+    let _log_guard = slog_stdlog::init().unwrap();
+
     let config = Config::parse();
 
     let data_store = Arc::new(GitDataStore::new(&config.path, &config.branch));
