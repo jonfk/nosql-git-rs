@@ -4,11 +4,11 @@ extern crate slog_async;
 extern crate slog_term;
 
 use actix_slog::StructuredLogger;
-use actix_web::{middleware::Logger, App, HttpServer};
+use actix_web::{App, HttpServer};
 use clap::Clap;
-use git_ops::{route, GitDataStore};
+use git_ops::{clone, route, GitDataStore};
 use slog::Drain;
-use std::sync::Arc;
+use std::{path::Path, sync::Arc};
 
 #[derive(Clap, Debug)]
 pub struct Config {
@@ -19,6 +19,21 @@ pub struct Config {
     /// Sets the primary branch
     #[clap(short, long, default_value = "master")]
     branch: String,
+
+    /// Clone from url if `path` does not already exists.
+    /// Errors if path already exists.
+    /// Currently only supports ssh
+    #[clap(short, long)]
+    clone: Option<String>,
+
+    /// Initializes a repository at path if path does not already exist.
+    /// Clone will take precedence over init and the init will fail.
+    #[clap(short, long)]
+    init: bool,
+
+    /// Repository is created as bare when cloned or initialized.
+    #[clap(long)]
+    bare: bool,
 }
 
 #[actix_web::main]
@@ -32,8 +47,23 @@ pub async fn main() -> std::io::Result<()> {
 
     let config = Config::parse();
 
+    if let Some(clone_url) = config.clone {
+        if Path::new(&config.path).exists() {
+            error!(root_log, "Path already exists. Cannot clone"; "url" => &clone_url, "path" => &config.path);
+            std::process::exit(1);
+        }
+        info!(root_log, "cloning from url"; "url" => &clone_url, "path" => &config.path);
+        clone::clone_ssh(&clone_url, &config.path, config.bare).expect("clone");
+    }
+
+    if config.init {
+        info!(root_log, "initializing repository"; "path" => &config.path);
+        clone::init(&config.path, config.bare).expect("init");
+    }
+
     let data_store = Arc::new(GitDataStore::new(&config.path, &config.branch));
 
+    info!(root_log, "listening to :8081");
     HttpServer::new(move || {
         App::new()
             .wrap(StructuredLogger::new(
