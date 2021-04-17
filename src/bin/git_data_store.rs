@@ -3,6 +3,7 @@ extern crate slog;
 extern crate slog_async;
 extern crate slog_term;
 
+use actix_slog::StructuredLogger;
 use actix_web::{middleware::Logger, App, HttpServer};
 use clap::Clap;
 use git_ops::{route, GitDataStore};
@@ -26,7 +27,7 @@ pub async fn main() -> std::io::Result<()> {
     let drain = slog_term::FullFormat::new(decorator).build().fuse();
     let drain = slog_async::Async::new(drain).build().fuse();
 
-    let _log = slog::Logger::root(drain, o!());
+    let root_log = slog::Logger::root(drain, o!());
     let _log_guard = slog_stdlog::init().unwrap();
 
     let config = Config::parse();
@@ -35,10 +36,13 @@ pub async fn main() -> std::io::Result<()> {
 
     HttpServer::new(move || {
         App::new()
-            .wrap(Logger::default())
+            .wrap(StructuredLogger::new(
+                root_log.new(o!("log_type" => "access")),
+            ))
             .data(data_store.clone())
             .service(route::get_data)
             .service(route::put_data)
+            .service(route::get_latest_data)
     })
     .bind("127.0.0.1:8081")?
     .run()

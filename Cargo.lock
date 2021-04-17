@@ -151,6 +151,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "actix-slog"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c697a62a2f51c5c26af6b1dded0622f15bec690da191615947e0c1b2b7b75198"
+dependencies = [
+ "actix-web",
+ "chrono",
+ "futures",
+ "pin-project 0.4.28",
+ "slog",
+]
+
+[[package]]
 name = "actix-testing"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -678,6 +691,7 @@ checksum = "7f55667319111d593ba876406af7c409c0ebb44dc4be6132a783ccf163ea14c1"
 dependencies = [
  "futures-channel",
  "futures-core",
+ "futures-executor",
  "futures-io",
  "futures-sink",
  "futures-task",
@@ -699,6 +713,17 @@ name = "futures-core"
 version = "0.3.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "15496a72fabf0e62bdc3df11a59a3787429221dd0710ba8ef163d6f7a9112c94"
+
+[[package]]
+name = "futures-executor"
+version = "0.3.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "891a4b7b96d84d5940084b2a37632dd65deeae662c114ceaa2c879629c9c0ad1"
+dependencies = [
+ "futures-core",
+ "futures-task",
+ "futures-util",
+]
 
 [[package]]
 name = "futures-io"
@@ -795,6 +820,7 @@ dependencies = [
 name = "git-ops"
 version = "0.1.0"
 dependencies = [
+ "actix-slog",
  "actix-web",
  "anyhow",
  "chrono",
