@@ -29,11 +29,28 @@ pub fn clone_ssh<T: AsRef<Path>>(url: &str, path: T, bare: bool) -> Result<Repos
 }
 
 /// From https://github.com/rust-lang/git2-rs/blob/7912c90991444abb00f9d0476939d48bc368516b/examples/init.rs
-pub fn init(path: &str, bare: bool) -> Result<()> {
+pub fn init<T: AsRef<Path>>(path: T, bare: bool) -> Result<()> {
     let mut opts = RepositoryInitOptions::new();
     opts.bare(bare);
 
-    Repository::init_opts(&path, &opts)?;
+    let repo = Repository::init_opts(&path, &opts)?;
+
+    create_initial_commit(&repo)?;
+
+    Ok(())
+}
+
+fn create_initial_commit(repo: &Repository) -> Result<()> {
+    let sig = repo.signature()?;
+
+    let tree_id = {
+        let mut index = repo.index()?;
+        index.write_tree()?
+    };
+
+    let tree = repo.find_tree(tree_id)?;
+
+    repo.commit(Some("HEAD"), &sig, &sig, "Initial commit", &tree, &[])?;
 
     Ok(())
 }
