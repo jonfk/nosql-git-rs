@@ -41,16 +41,16 @@ pub async fn put_data(
     store: web::Data<Arc<GitDataStore>>,
     path_params: web::Path<(String, String)>,
     data: web::Json<PutDataReq>,
-) -> HttpResponse {
+) -> Result<HttpResponse, GitDataStoreError> {
     let (commit_id, file_path) = path_params.into_inner();
     let new_commit_id = store.put(
         &commit_id,
         &file_path,
         &data.data,
         data.resolve_conflict_my_favor.unwrap_or(false),
-    );
+    )?;
 
-    HttpResponse::Ok().json(PutDataResp {
+    Ok(HttpResponse::Ok().json(PutDataResp {
         commit_id: new_commit_id,
-    })
+    }))
 }

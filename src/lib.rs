@@ -58,21 +58,20 @@ impl GitDataStore {
 
         read_entry_from_tree(&repo, &commit, path)
     }
+
     pub fn put(
         &self,
         parent_rev_id: &str,
         path: &str,
         data: &str,
         resolve_conflicts_in_our_favor: bool,
-    ) -> String {
+    ) -> Result<String, GitDataStoreError> {
         // get index, create commit from parent commit
         // merge commit with current commit of primary branch
         // update primary branch
-        let repo = Repository::open(&self.repo_path).expect("open repo");
+        let repo = Repository::open(&self.repo_path)?;
 
-        let parent_rev = repo
-            .revparse_single(parent_rev_id)
-            .expect("revparse_single");
+        let parent_rev = repo.revparse_single(parent_rev_id)?;
 
         let parent_commit = match parent_rev.kind().expect("no kind on parent rev") {
             git2::ObjectType::Commit => parent_rev
@@ -82,81 +81,70 @@ impl GitDataStore {
             git2::ObjectType::Tag => parent_rev
                 .as_tag()
                 .expect("parent_rev tag is not tag")
-                .target()
-                .expect("parent_rev tag target")
+                .target()?
                 .as_commit()
                 .expect("parent_rev tag target not commit")
                 .to_owned(),
             _ => panic!("Unexpected parent_rev type"),
         };
 
-        let mut index = repo.index().expect("repo.index()");
-        index
-            .add_frombuffer(&make_index_entry(&path), data.as_bytes())
-            .expect("index.add_frombuffer");
+        let mut index = repo.index()?;
+        index.add_frombuffer(&make_index_entry(&path), data.as_bytes())?;
 
-        let tree_oid = index.write_tree().expect("index.write_tree");
-        let tree = repo.find_tree(tree_oid).expect("repo.find_tree");
+        let tree_oid = index.write_tree()?;
+        let tree = repo.find_tree(tree_oid)?;
 
         let author_commiter = signature();
 
-        let commit_id = repo
-            .commit(
-                None,
-                &author_commiter,
-                &author_commiter,
-                "Update",
-                &tree,
-                &[&parent_commit],
-            )
-            .expect("repo.commit");
+        let commit_id = repo.commit(
+            None,
+            &author_commiter,
+            &author_commiter,
+            "Update",
+            &tree,
+            &[&parent_commit],
+        )?;
 
         // lock mutex
         let _mutex = self.mutex.lock();
-        let mut main_ref = repo
-            .find_reference(&format!("refs/heads/{}", self.primary_branch))
-            .expect("find_reference");
+        let mut main_ref = repo.find_reference(&format!("refs/heads/{}", self.primary_branch))?;
 
-        let head_commit = main_ref.peel_to_commit().expect("peel_to_commit");
+        let head_commit = main_ref.peel_to_commit()?;
 
         if head_commit.id() == parent_commit.id() {
             // update-ref of main branch
-            main_ref
-                .set_target(commit_id, "updated primary branch with new commit")
-                .expect("set_target");
-            commit_id.to_string()
+            main_ref.set_target(commit_id, "updated primary branch with new commit")?;
+            Ok(commit_id.to_string())
         } else {
             // merge commits
-            let our_commit = repo.find_commit(commit_id).expect("repo.find_commit");
+            let our_commit = repo.find_commit(commit_id)?;
             let mut merge_options = MergeOptions::new();
 
             if resolve_conflicts_in_our_favor {
                 merge_options.file_favor(git2::FileFavor::Ours);
             }
 
-            let mut merge_index = repo
-                .merge_commits(&our_commit, &head_commit, Some(&merge_options))
-                .expect("merge_commits");
+            let mut merge_index =
+                repo.merge_commits(&our_commit, &head_commit, Some(&merge_options))?;
 
             if merge_index.has_conflicts() {
+                // TODO add error
                 panic!("index has conflicts");
             }
 
-            let merge_tree_id = merge_index.write_tree_to(&repo).expect("write_tree_to");
-            let merge_tree = repo.find_tree(merge_tree_id).expect("repo.find_tree");
+            let merge_tree_id = merge_index.write_tree_to(&repo)?;
+            let merge_tree = repo.find_tree(merge_tree_id)?;
 
-            let merge_commit_id = repo
-                .commit(
-                    Some(&format!("refs/heads/{}", self.primary_branch)),
-                    &author_commiter,
-                    &author_commiter,
-                    "Merge Commit",
-                    &merge_tree,
-                    &[&head_commit, &our_commit],
-                )
-                .expect("repo.commit merge");
+            let merge_commit_id = repo.commit(
+                Some(&format!("refs/heads/{}", self.primary_branch)),
+                &author_commiter,
+                &author_commiter,
+                "Merge Commit",
+                &merge_tree,
+                &[&head_commit, &our_commit],
+            )?;
 
-            merge_commit_id.to_string()
+            Ok(merge_commit_id.to_string())
         }
     }
 
@@ -206,21 +194,20 @@ pub fn make_index_entry(path: &str) -> IndexEntry {
 }
 
 fn signature() -> Signature<'static> {
-    Signature::now("GitDataStore", "gitdatastore@email.com").expect("Signature")
+    Signature::now("GitDataStore", "gitdatastore@email.com").expect("Failed creating Signature")
 }
 
 pub fn create_branch<'repo>(
     repo: &'repo Repository,
     branch_name: &str,
     oid: Oid,
-) -> Reference<'repo> {
-    repo.reference(
+) -> Result<Reference<'repo>, GitDataStoreError> {
+    Ok(repo.reference(
         &format!("refs/heads/{}", branch_name),
         oid,
         false,
         "creating branch",
-    )
-    .expect("create reference")
+    )?)
 }
 
 fn read_entry_from_tree(
