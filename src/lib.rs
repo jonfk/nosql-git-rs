@@ -105,7 +105,7 @@ impl GitDataStore {
                 None,
                 &author_commiter,
                 &author_commiter,
-                "",
+                "Update",
                 &tree,
                 &[&parent_commit],
             )
@@ -158,6 +158,33 @@ impl GitDataStore {
 
             merge_commit_id.to_string()
         }
+    }
+
+    pub fn put_latest(&self, path: &str, data: &str) -> Result<String, GitDataStoreError> {
+        let repo = Repository::open(&self.repo_path).expect("open repo");
+
+        let _mutex = self.mutex.lock();
+        let main_ref = repo.find_reference(&format!("refs/heads/{}", self.primary_branch))?;
+
+        let head_commit = main_ref.peel_to_commit()?;
+
+        let mut index = repo.index()?;
+        index.add_frombuffer(&make_index_entry(&path), data.as_bytes())?;
+
+        let tree_oid = index.write_tree()?;
+        let tree = repo.find_tree(tree_oid)?;
+
+        let author_commiter = signature();
+
+        let commit_id = repo.commit(
+            Some(&format!("refs/head/{}", self.primary_branch)),
+            &author_commiter,
+            &author_commiter,
+            "Update latest",
+            &tree,
+            &[&head_commit],
+        )?;
+        Ok(commit_id.to_string())
     }
 }
 
