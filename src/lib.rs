@@ -1,5 +1,6 @@
 use error::GitDataStoreError;
 use git2::{FileMode, IndexEntry, IndexTime, MergeOptions, Oid, Reference, Repository, Signature};
+use log::HistoryIterator;
 use parking_lot::Mutex;
 use serde::Serialize;
 use std::path::Path;
@@ -149,7 +150,7 @@ impl GitDataStore {
     }
 
     pub fn put_latest(&self, path: &str, data: &str) -> Result<String, GitDataStoreError> {
-        let repo = Repository::open(&self.repo_path).expect("open repo");
+        let repo = Repository::open(&self.repo_path)?;
 
         let _mutex = self.mutex.lock();
         let main_ref = repo.find_reference(&format!("refs/heads/{}", self.primary_branch))?;
@@ -173,6 +174,11 @@ impl GitDataStore {
             &[&head_commit],
         )?;
         Ok(commit_id.to_string())
+    }
+
+    pub fn history(&self) -> Result<HistoryIterator, GitDataStoreError> {
+        let repo = Repository::open(&self.repo_path)?;
+        log::git_log(repo)
     }
 }
 

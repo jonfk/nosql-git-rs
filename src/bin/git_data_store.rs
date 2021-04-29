@@ -72,6 +72,7 @@ pub async fn main() -> std::io::Result<()> {
             .data(data_store.clone())
             .service(route::get_data)
             .service(route::put_data)
+            .service(route::history)
             .service(route::get_latest_data)
     })
     .bind("127.0.0.1:8081")?

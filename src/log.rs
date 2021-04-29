@@ -1,41 +1,47 @@
 use crate::error::GitDataStoreError;
 use chrono::{FixedOffset, TimeZone};
-use git2::{Commit, Oid, Repository, Time};
+use git2::{Commit, Oid, Repository, Revwalk, Time};
 use serde::Serialize;
 
-#[derive(Serialize)]
-pub struct History {
-    commits: Vec<HistoryEntry>,
-}
-
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct HistoryEntry {
     timestamp_seconds: i64,
     commit_id: String,
+    message: Option<String>,
     author: String,
     stats: HistoryStats,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct HistoryStats {
     files_changed: usize,
     insertions: usize,
     deletions: usize,
 }
 
-pub fn git_log(repo: &Repository, skip: usize, limit: usize) -> Result<History, GitDataStoreError> {
-    let mut rev_walk = repo.revwalk()?;
-    rev_walk.push_head()?;
+pub struct HistoryIterator {
+    repo: Repository,
+}
 
-    let history: Result<Vec<HistoryEntry>, GitDataStoreError> = rev_walk
-        .into_iter()
-        .skip(skip)
-        .enumerate()
-        .take_while(|(i, _rev)| *i < limit)
-        .map(|(_i, rev)| map_rev(repo, rev))
-        .collect();
+impl HistoryIterator {
+    fn new(repo: Repository) -> Self {
+        HistoryIterator { repo: repo }
+    }
 
-    Ok(History { commits: history? })
+    pub fn iter<'repo>(
+        &'repo self,
+    ) -> Result<
+        impl Iterator<Item = Result<HistoryEntry, GitDataStoreError>> + 'repo,
+        GitDataStoreError,
+    > {
+        let mut rev_walk = self.repo.revwalk()?;
+        rev_walk.push_head();
+        Ok(rev_walk.map(move |rev| map_rev(&self.repo, rev)))
+    }
+}
+
+pub fn git_log<'repo>(repo: Repository) -> Result<HistoryIterator, GitDataStoreError> {
+    Ok(HistoryIterator::new(repo))
 }
 
 fn map_rev(
@@ -62,6 +68,7 @@ fn map_rev(
         timestamp_seconds: commit.time().seconds(),
         commit_id: commit.id().to_string(),
         author: commit.author().to_string(),
+        message: commit.message().map(|m| m.to_string()),
         stats: stats,
     });
     x

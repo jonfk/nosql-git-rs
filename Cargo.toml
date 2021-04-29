@@ -22,3 +22,6 @@ slog = { version = "2.7" }
 slog-term = "2.8"
 slog-async = "2.6"
 slog-stdlog = "4.1"
+
+[dev-dependencies]
+tempfile = "3.2.0"

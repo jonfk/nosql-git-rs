@@ -1,4 +1,4 @@
-use crate::{error::GitDataStoreError, GitDataStore};
+use crate::{error::GitDataStoreError, log::HistoryEntry, GitDataStore};
 use actix_web::{get, put, web, HttpResponse};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -52,5 +52,38 @@ pub async fn put_data(
 
     Ok(HttpResponse::Ok().json(PutDataResp {
         commit_id: new_commit_id,
+    }))
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct HistoryReqQuery {
+    first: usize,
+    after: usize,
+}
+
+#[derive(Serialize)]
+pub struct HistoryResp {
+    entries: Vec<HistoryEntry>,
+    has_next: bool,
+}
+
+#[get("/commits")]
+pub async fn commits(
+    store: web::Data<Arc<GitDataStore>>,
+    web::Query(history_req): web::Query<HistoryReqQuery>,
+) -> Result<HttpResponse, GitDataStoreError> {
+    let history = store.history()?;
+    let entries: Result<Vec<_>, GitDataStoreError> = history
+        .iter()?
+        .skip(history_req.after)
+        .take(history_req.first + 1)
+        .collect();
+    let mut entries = entries?;
+    let has_next = entries.len() == (history_req.first + 1);
+    entries.truncate(history_req.first);
+
+    Ok(HttpResponse::Ok().json(HistoryResp {
+        entries: entries,
+        has_next: has_next,
     }))
 }
