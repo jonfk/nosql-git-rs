@@ -59,6 +59,7 @@ pub async fn put_data(
 pub struct HistoryReqQuery {
     first: usize,
     after: usize,
+    path: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -73,11 +74,19 @@ pub async fn commits(
     web::Query(history_req): web::Query<HistoryReqQuery>,
 ) -> Result<HttpResponse, GitDataStoreError> {
     let history = store.history()?;
-    let entries: Result<Vec<_>, GitDataStoreError> = history
-        .iter()?
-        .skip(history_req.after)
-        .take(history_req.first + 1)
-        .collect();
+    let entries: Result<Vec<_>, GitDataStoreError> = if let Some(path) = history_req.path {
+        history
+            .iter_path(&path)?
+            .skip(history_req.after)
+            .take(history_req.first + 1)
+            .collect()
+    } else {
+        history
+            .iter()?
+            .skip(history_req.after)
+            .take(history_req.first + 1)
+            .collect()
+    };
     let mut entries = entries?;
     let has_next = entries.len() == (history_req.first + 1);
     entries.truncate(history_req.first);

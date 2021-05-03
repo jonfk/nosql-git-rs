@@ -4,7 +4,7 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum GitDataStoreError {
-    #[error("Git2 Error")]
+    #[error("Git2 Error {}", .0)]
     Git2(#[from] git2::Error),
 
     #[error("Invalid revision could not be found {}", .0)]
@@ -25,6 +25,8 @@ pub struct ErrorJson {
 impl actix_web::error::ResponseError for GitDataStoreError {
     fn error_response(&self) -> HttpResponse {
         let error_str = self.to_string();
+        // TODO add error logger
+        println!("[ERROR] {}", self);
         HttpResponseBuilder::new(self.status_code()).json(ErrorJson { error: error_str })
     }
 
