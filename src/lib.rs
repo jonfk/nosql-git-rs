@@ -1,6 +1,6 @@
 use error::GitDataStoreError;
 use git2::{FileMode, IndexEntry, IndexTime, MergeOptions, Oid, Reference, Repository, Signature};
-use log::HistoryIterator;
+use history::HistoryIterator;
 use parking_lot::Mutex;
 use serde::Serialize;
 use std::path::Path;
@@ -9,7 +9,7 @@ pub mod clone;
 pub mod commit;
 pub mod commit_to_branch;
 pub mod error;
-pub mod log;
+pub mod history;
 pub mod route;
 
 pub struct GitDataStore {
@@ -178,7 +178,7 @@ impl GitDataStore {
 
     pub fn history(&self) -> Result<HistoryIterator, GitDataStoreError> {
         let repo = Repository::open(&self.repo_path)?;
-        log::git_log(repo)
+        history::git_log(repo)
     }
 }
 

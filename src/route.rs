@@ -1,4 +1,4 @@
-use crate::{error::GitDataStoreError, log::HistoryEntry, GitDataStore};
+use crate::{error::GitDataStoreError, history::HistoryEntry, GitDataStore};
 use actix_web::{get, put, web, HttpResponse};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
