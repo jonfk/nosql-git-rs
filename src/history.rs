@@ -1,20 +1,17 @@
-use std::{
-    collections::HashMap,
-    path::{Path, PathBuf},
-};
+use std::{collections::HashMap, path::Path, time::Instant};
 
 use crate::error::GitDataStoreError;
 use chrono::{FixedOffset, TimeZone};
-use git2::{Commit, Oid, Repository, Revwalk, Time};
+use git2::{Commit, DiffOptions, Oid, Repository, Revwalk, Time};
 use serde::Serialize;
 
 #[derive(Serialize, Debug)]
 pub struct HistoryEntry {
-    timestamp_seconds: i64,
-    commit_id: String,
-    message: Option<String>,
-    author: String,
-    stats: HistoryStats,
+    pub timestamp_seconds: i64,
+    pub commit_id: String,
+    pub message: Option<String>,
+    pub author: String,
+    pub stats: HistoryStats,
 }
 
 #[derive(Serialize, Debug)]
@@ -94,22 +91,36 @@ impl<'repo> FileHistoryIterator<'repo> {
         &mut self,
         rev: Result<Oid, git2::Error>,
     ) -> Result<Option<HistoryEntry>, GitDataStoreError> {
+        // let now = Instant::now();
         let rev = rev?;
+        //println!("rev {}", now.elapsed().as_nanos());
         let current_commit = self.repo.find_commit(rev.clone())?;
+        //println!("find_commit {}", now.elapsed().as_nanos());
 
         let current_path = self
             .commits_2_path
             .get(&current_commit.id())
             .map(|p| p.clone())
             .unwrap_or(self.path.clone());
+        //println!("current_path {}", now.elapsed().as_nanos());
         let current_tree = current_commit.tree()?;
+        //println!("current_tree {}", now.elapsed().as_nanos());
         let current_tree_entry = get_path_from_tree(&current_tree, Path::new(&current_path))?;
+        //println!("current_tree_entry {}", now.elapsed().as_nanos());
 
         if current_tree_entry.is_none() {
+            // println!(
+            //     "[SKIP] current_tree_entry is_none {}",
+            //     now.elapsed().as_nanos()
+            // );
             return Ok(None);
         }
 
         if current_commit.parents().count() == 0 {
+            // println!(
+            //     "[TAKE] current_commit no parents {}",
+            //     now.elapsed().as_nanos()
+            // );
             return Ok(Some(map_rev(self.repo, Ok(rev.clone()))?));
         } else {
             determine_parent_path(
@@ -118,24 +129,37 @@ impl<'repo> FileHistoryIterator<'repo> {
                 &current_commit,
                 &current_path,
             )?;
-
+            //println!("determine_parent_path {}", now.elapsed().as_nanos());
             // the original solution skipped the commit if it had more than 1 parent. Not sure why
+            if current_commit.parents().count() > 1 {
+                // println!(
+                //     "[SKIP] current_commit parents not 1 {}",
+                //     now.elapsed().as_nanos()
+                // );
+                return Ok(None);
+            }
 
             let parent_commit = current_commit.parents().next().unwrap(); // todo remove unwrap
+                                                                          //println!("parent_commit {}", now.elapsed().as_nanos());
             let parent_path = self
                 .commits_2_path
                 .get(&parent_commit.id())
                 .unwrap_or(&self.path);
+            //println!("parent_path {}", now.elapsed().as_nanos());
             let parent_tree = parent_commit.tree()?;
+            //println!("parent_tree {}", now.elapsed().as_nanos());
             let parent_tree_entry = get_path_from_tree(&parent_tree, Path::new(&parent_path))?;
+            //println!("parent_tree_entry {}", now.elapsed().as_nanos());
 
             if parent_tree_entry.is_none()
                 || parent_tree_entry.unwrap().id() != current_tree_entry.unwrap().id()
                 || *parent_path != current_path
             {
+                //println!("[TAKE] {}", now.elapsed().as_nanos());
                 return Ok(Some(map_rev(self.repo, Ok(rev.clone()))?));
             }
         }
+        //println!("[SKIP] {}", now.elapsed().as_nanos());
         return Ok(None);
     }
 }
@@ -162,20 +186,24 @@ fn determine_parent_path(
     current_commit: &Commit,
     current_path: &str,
 ) -> Result<(), GitDataStoreError> {
+    let now = Instant::now();
     let parent_commits: Vec<_> = current_commit
         .parents()
         .filter(|commit| commits_2_path.get(&commit.id()).is_none())
         .collect();
+    //println!("get parent_commits {}", now.elapsed().as_nanos());
     for parent_commit in parent_commits {
         if let std::collections::hash_map::Entry::Vacant(entry) =
             commits_2_path.entry(parent_commit.id())
         {
+            //let now = Instant::now();
             entry.insert(parent_path(
                 &repo,
                 &current_commit,
                 &parent_commit,
                 &current_path,
             )?);
+            //println!("entry.insert {}", now.elapsed().as_nanos());
         }
     }
     Ok(())
@@ -187,10 +215,12 @@ fn parent_path(
     parent_commit: &Commit,
     current_path: &str,
 ) -> Result<String, GitDataStoreError> {
+    let mut diff_options = DiffOptions::new();
+    diff_options.pathspec(current_path);
     let diff = repo.diff_tree_to_tree(
         Some(&parent_commit.tree()?),
         Some(&current_commit.tree()?),
-        None,
+        Some(&mut diff_options),
     )?;
 
     let new_path = if let Some(file_rename_change) = diff
