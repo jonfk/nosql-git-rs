@@ -18,15 +18,33 @@ pub struct GitDataStore {
     mutex: Mutex<()>,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize, PartialEq, Eq)]
 pub struct GitEntry {
-    data: GitData,
-    commit_id: String,
+    pub data: GitData,
+    pub commit_id: String,
 }
-#[derive(Serialize)]
+#[derive(Debug, Serialize, PartialEq, Eq)]
 pub enum GitData {
     Dir { entries: Vec<String> },
     File { data: String },
+}
+
+impl GitData {
+    pub fn is_dir(&self) -> bool {
+        if let GitData::Dir { .. } = self {
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn is_file(&self) -> bool {
+        if let GitData::File { .. } = self {
+            true
+        } else {
+            false
+        }
+    }
 }
 
 impl GitDataStore {
@@ -130,6 +148,21 @@ impl GitDataStore {
 
             if merge_index.has_conflicts() {
                 // TODO add error
+                for conflict in merge_index.conflicts()? {
+                    let conflict = conflict?;
+                    println!(
+                        "ancestor: {:?}, ours: {:?}, their: {:?}",
+                        conflict
+                            .ancestor
+                            .map(|ie| String::from_utf8(ie.path).expect("path to string")),
+                        conflict
+                            .our
+                            .map(|ie| String::from_utf8(ie.path).expect("path to string")),
+                        conflict
+                            .their
+                            .map(|ie| String::from_utf8(ie.path).expect("path to string")),
+                    );
+                }
                 panic!("index has conflicts");
             }
 
@@ -166,7 +199,7 @@ impl GitDataStore {
         let author_commiter = signature();
 
         let commit_id = repo.commit(
-            Some(&format!("refs/head/{}", self.primary_branch)),
+            Some(&format!("refs/heads/{}", self.primary_branch)),
             &author_commiter,
             &author_commiter,
             "Update latest",

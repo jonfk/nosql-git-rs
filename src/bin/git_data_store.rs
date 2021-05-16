@@ -74,6 +74,7 @@ pub async fn main() -> std::io::Result<()> {
             .service(route::put_data)
             .service(route::commits)
             .service(route::get_latest_data)
+            .service(route::put_latest_data)
     })
     .bind("127.0.0.1:8081")?
     .run()

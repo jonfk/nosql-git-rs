@@ -186,7 +186,7 @@ fn determine_parent_path(
     current_commit: &Commit,
     current_path: &str,
 ) -> Result<(), GitDataStoreError> {
-    let now = Instant::now();
+    //let now = Instant::now();
     let parent_commits: Vec<_> = current_commit
         .parents()
         .filter(|commit| commits_2_path.get(&commit.id()).is_none())
