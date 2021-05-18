@@ -1,5 +1,5 @@
 use crate::{error::GitDataStoreError, history::HistoryEntry, GitDataStore};
-use actix_web::{get, put, post, web, HttpResponse};
+use actix_web::{get, post, put, web, HttpResponse};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -62,16 +62,12 @@ pub async fn put_latest_data(
     data: web::Json<PutDataReq>,
 ) -> Result<HttpResponse, GitDataStoreError> {
     let file_path = path_params.into_inner().0;
-    let new_commit_id = store.put_latest(
-        &file_path,
-        &data.data,
-    )?;
+    let new_commit_id = store.put_latest(&file_path, &data.data)?;
 
     Ok(HttpResponse::Ok().json(PutDataResp {
         commit_id: new_commit_id,
     }))
 }
-
 
 #[derive(Serialize, Deserialize)]
 pub struct HistoryReqQuery {

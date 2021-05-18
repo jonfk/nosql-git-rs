@@ -15,6 +15,12 @@ pub enum GitDataStoreError {
 
     #[error("Blob contains non-utf8 content. commit_id: {}, path: {}", .commit_id, .path)]
     NonUtf8Blob { commit_id: String, path: String },
+
+    #[error("Another commit has updated this path since the parent provided. parent_commit_id: {}, path: {}", .parent_commit_id, .path)]
+    ConflictOnWrite {
+        path: String,
+        parent_commit_id: String,
+    },
 }
 
 #[derive(Serialize)]
@@ -36,6 +42,7 @@ impl actix_web::error::ResponseError for GitDataStoreError {
             GitDataStoreError::NonUtf8Blob { .. } => StatusCode::INTERNAL_SERVER_ERROR,
             GitDataStoreError::RevNotFound(..) => StatusCode::NOT_FOUND,
             GitDataStoreError::PathNotFound(..) => StatusCode::NOT_FOUND,
+            GitDataStoreError::ConflictOnWrite { .. } => StatusCode::CONFLICT,
         }
     }
 }

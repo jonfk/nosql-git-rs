@@ -1,5 +1,8 @@
 use error::GitDataStoreError;
-use git2::{FileMode, IndexEntry, IndexTime, MergeOptions, Oid, Reference, Repository, Signature};
+use git2::{
+    DiffOptions, FileMode, IndexEntry, IndexTime, MergeOptions, Oid, Reference, Repository,
+    Signature,
+};
 use history::HistoryIterator;
 use parking_lot::Mutex;
 use serde::Serialize;
@@ -83,11 +86,12 @@ impl GitDataStore {
         parent_rev_id: &str,
         path: &str,
         data: &str,
-        resolve_conflicts_in_our_favor: bool,
+        overwrite: bool,
     ) -> Result<String, GitDataStoreError> {
-        // get index, create commit from parent commit
-        // merge commit with current commit of primary branch
-        // update primary branch
+        // get last commit from primary branch and parent commit
+        // if they are the same or the overwrite flag is set, create new commit with that as parent and update primary branch
+        // if they are not the same, diff between the 2 commits and check that path hasn't been updated since parent commit
+        // if it has been updated, create conflict error
         let repo = Repository::open(&self.repo_path)?;
 
         let parent_rev = repo.revparse_single(parent_rev_id)?;
@@ -107,6 +111,29 @@ impl GitDataStore {
             _ => panic!("Unexpected parent_rev type"),
         };
 
+        // lock mutex
+        let _mutex = self.mutex.lock();
+        let main_ref = repo.find_reference(&format!("refs/heads/{}", self.primary_branch))?;
+
+        let head_commit = main_ref.peel_to_commit()?;
+
+        if head_commit.id() != parent_commit.id() && !overwrite {
+            let mut diff_options = DiffOptions::new();
+            diff_options.pathspec(path);
+            let diff = repo.diff_tree_to_tree(
+                Some(&parent_commit.tree()?),
+                Some(&head_commit.tree()?),
+                Some(&mut diff_options),
+            )?;
+
+            if !diff.deltas().len() == 0 {
+                return Err(GitDataStoreError::ConflictOnWrite {
+                    path: path.to_string(),
+                    parent_commit_id: parent_commit.id().to_string(),
+                });
+            }
+        }
+
         let mut index = repo.index()?;
         index.add_frombuffer(&make_index_entry(&path), data.as_bytes())?;
 
@@ -116,70 +143,14 @@ impl GitDataStore {
         let author_commiter = signature();
 
         let commit_id = repo.commit(
-            None,
+            Some(&format!("refs/heads/{}", self.primary_branch)),
             &author_commiter,
             &author_commiter,
-            "Update",
+            &format!("Update {}", path),
             &tree,
-            &[&parent_commit],
+            &[&head_commit],
         )?;
-
-        // lock mutex
-        let _mutex = self.mutex.lock();
-        let mut main_ref = repo.find_reference(&format!("refs/heads/{}", self.primary_branch))?;
-
-        let head_commit = main_ref.peel_to_commit()?;
-
-        if head_commit.id() == parent_commit.id() {
-            // update-ref of main branch
-            main_ref.set_target(commit_id, "updated primary branch with new commit")?;
-            Ok(commit_id.to_string())
-        } else {
-            // merge commits
-            let our_commit = repo.find_commit(commit_id)?;
-            let mut merge_options = MergeOptions::new();
-
-            if resolve_conflicts_in_our_favor {
-                merge_options.file_favor(git2::FileFavor::Ours);
-            }
-
-            let mut merge_index =
-                repo.merge_commits(&our_commit, &head_commit, Some(&merge_options))?;
-
-            if merge_index.has_conflicts() {
-                // TODO add error
-                for conflict in merge_index.conflicts()? {
-                    let conflict = conflict?;
-                    println!(
-                        "ancestor: {:?}, ours: {:?}, their: {:?}",
-                        conflict
-                            .ancestor
-                            .map(|ie| String::from_utf8(ie.path).expect("path to string")),
-                        conflict
-                            .our
-                            .map(|ie| String::from_utf8(ie.path).expect("path to string")),
-                        conflict
-                            .their
-                            .map(|ie| String::from_utf8(ie.path).expect("path to string")),
-                    );
-                }
-                panic!("index has conflicts");
-            }
-
-            let merge_tree_id = merge_index.write_tree_to(&repo)?;
-            let merge_tree = repo.find_tree(merge_tree_id)?;
-
-            let merge_commit_id = repo.commit(
-                Some(&format!("refs/heads/{}", self.primary_branch)),
-                &author_commiter,
-                &author_commiter,
-                "Merge Commit",
-                &merge_tree,
-                &[&head_commit, &our_commit],
-            )?;
-
-            Ok(merge_commit_id.to_string())
-        }
+        Ok(commit_id.to_string())
     }
 
     pub fn put_latest(&self, path: &str, data: &str) -> Result<String, GitDataStoreError> {
