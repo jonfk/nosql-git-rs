@@ -1,6 +1,6 @@
 use error::GitDataStoreError;
 use git2::{
-    DiffOptions, FileMode, IndexEntry, IndexTime, MergeOptions, Oid, Reference, Repository,
+    DiffOptions, FileMode, IndexEntry, IndexTime, Oid, Reference, Repository, Index, Commit,
     Signature,
 };
 use history::HistoryIterator;
@@ -46,6 +46,14 @@ impl GitData {
             true
         } else {
             false
+        }
+    }
+
+    pub fn file(&self) -> Option<&str> {
+        if let GitData::File { data } = self {
+            Some(data)
+        } else {
+            None
         }
     }
 }
@@ -134,10 +142,7 @@ impl GitDataStore {
             }
         }
 
-        let mut index = repo.index()?;
-        index.add_frombuffer(&make_index_entry(&path), data.as_bytes())?;
-
-        let tree_oid = index.write_tree()?;
+        let tree_oid = self.create_tree(&repo, path, data, &head_commit)?;
         let tree = repo.find_tree(tree_oid)?;
 
         let author_commiter = signature();
@@ -161,12 +166,9 @@ impl GitDataStore {
 
         let head_commit = main_ref.peel_to_commit()?;
 
-        let mut index = repo.index()?;
-        index.add_frombuffer(&make_index_entry(&path), data.as_bytes())?;
+        let tree_oid = self.create_tree(&repo, path, data, &head_commit)?;
 
-        let tree_oid = index.write_tree()?;
         let tree = repo.find_tree(tree_oid)?;
-
         let author_commiter = signature();
 
         let commit_id = repo.commit(
@@ -183,6 +185,17 @@ impl GitDataStore {
     pub fn history(&self) -> Result<HistoryIterator, GitDataStoreError> {
         let repo = Repository::open(&self.repo_path)?;
         history::git_log(repo)
+    }
+
+    fn create_tree(&self,repo: &Repository, path:&str, data: &str, head_commit: &Commit) -> Result<Oid, GitDataStoreError> {
+        let mut index = Index::new()?;
+        index.read_tree(&head_commit.tree()?)?;
+        repo.set_index(&mut index)?;
+        index.add_frombuffer(&make_index_entry(&path), data.as_bytes())?;
+
+        let tree_oid = index.write_tree_to(&repo)?;
+        Ok(tree_oid)
+
     }
 }
 

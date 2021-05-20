@@ -50,7 +50,7 @@ fn create_initial_commit(repo: &Repository) -> Result<()> {
 
     let tree = repo.find_tree(tree_id)?;
 
-    repo.commit(Some("HEAD"), &sig, &sig, "Initial commit", &tree, &[])?;
+    repo.commit(Some("refs/heads/master"), &sig, &sig, "Initial commit", &tree, &[])?;
 
     Ok(())
 }
