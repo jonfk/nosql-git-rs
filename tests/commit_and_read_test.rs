@@ -2,12 +2,12 @@ use anyhow::Result;
 use git_ops::{clone, GitDataStore};
 use tempfile::TempDir;
 
-const TEST_REPOS_DIR: &str = "test_repos";
+mod util;
 
 #[test]
 fn commit_and_read_test() {
-    let tmp_dir = TempDir::new_in(TEST_REPOS_DIR).expect("tmp_dir");
-    let tmp_repo_path = tmp_dir.into_path();
+    let tmp_dir = TempDir::new_in(util::TEST_REPOS_DIR).expect("tmp_dir");
+    let tmp_repo_path = tmp_dir.path();
 
     println!("store created");
     clone::init(&tmp_repo_path, false).expect("clone::init");
@@ -43,7 +43,9 @@ fn commit_and_read_test() {
     assert!(doc1_updated_result.data.is_file());
 
     let doc2_latest_result = store.read_latest(doc2_path).expect("read_latest doc2");
-    let doc2_created_result = store.read(&version_after_doc2, doc2_path).expect("read doc2");
+    let doc2_created_result = store
+        .read(&version_after_doc2, doc2_path)
+        .expect("read doc2");
 
     assert_eq!(doc2_latest_result.data, doc2_created_result.data);
     assert_eq!(doc2_latest_result.data.file().unwrap(), doc2_data);

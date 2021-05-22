@@ -1,6 +1,6 @@
 use error::GitDataStoreError;
 use git2::{
-    DiffOptions, FileMode, IndexEntry, IndexTime, Oid, Reference, Repository, Index, Commit,
+    Commit, DiffOptions, FileMode, Index, IndexEntry, IndexTime, Oid, Reference, Repository,
     Signature,
 };
 use history::HistoryIterator;
@@ -134,7 +134,7 @@ impl GitDataStore {
                 Some(&mut diff_options),
             )?;
 
-            if !diff.deltas().len() == 0 {
+            if diff.deltas().len() != 0 {
                 return Err(GitDataStoreError::ConflictOnWrite {
                     path: path.to_string(),
                     parent_commit_id: parent_commit.id().to_string(),
@@ -187,7 +187,13 @@ impl GitDataStore {
         history::git_log(repo)
     }
 
-    fn create_tree(&self,repo: &Repository, path:&str, data: &str, head_commit: &Commit) -> Result<Oid, GitDataStoreError> {
+    fn create_tree(
+        &self,
+        repo: &Repository,
+        path: &str,
+        data: &str,
+        head_commit: &Commit,
+    ) -> Result<Oid, GitDataStoreError> {
         let mut index = Index::new()?;
         index.read_tree(&head_commit.tree()?)?;
         repo.set_index(&mut index)?;
@@ -195,7 +201,6 @@ impl GitDataStore {
 
         let tree_oid = index.write_tree_to(&repo)?;
         Ok(tree_oid)
-
     }
 }
 
