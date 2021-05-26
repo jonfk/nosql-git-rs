@@ -9,7 +9,6 @@ fn commit_and_read_test() {
     let tmp_dir = TempDir::new_in(util::TEST_REPOS_DIR).expect("tmp_dir");
     let tmp_repo_path = tmp_dir.path();
 
-    println!("store created");
     clone::init(&tmp_repo_path, false).expect("clone::init");
 
     let store = GitDataStore::new(&tmp_repo_path.to_string_lossy(), "master");
