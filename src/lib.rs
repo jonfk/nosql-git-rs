@@ -103,21 +103,7 @@ impl GitDataStore {
         let repo = Repository::open(&self.repo_path)?;
 
         let parent_rev = repo.revparse_single(parent_rev_id)?;
-
-        let parent_commit = match parent_rev.kind().expect("no kind on parent rev") {
-            git2::ObjectType::Commit => parent_rev
-                .as_commit()
-                .expect("parent_rev commit is not commit")
-                .to_owned(),
-            git2::ObjectType::Tag => parent_rev
-                .as_tag()
-                .expect("parent_rev tag is not tag")
-                .target()?
-                .as_commit()
-                .expect("parent_rev tag target not commit")
-                .to_owned(),
-            _ => panic!("Unexpected parent_rev type"),
-        };
+        let parent_commit = parent_rev.peel_to_commit()?;
 
         // lock mutex
         let _mutex = self.mutex.lock();
@@ -125,21 +111,14 @@ impl GitDataStore {
 
         let head_commit = main_ref.peel_to_commit()?;
 
-        if head_commit.id() != parent_commit.id() && !overwrite {
-            let mut diff_options = DiffOptions::new();
-            diff_options.pathspec(path);
-            let diff = repo.diff_tree_to_tree(
-                Some(&parent_commit.tree()?),
-                Some(&head_commit.tree()?),
-                Some(&mut diff_options),
-            )?;
-
-            if diff.deltas().len() != 0 {
-                return Err(GitDataStoreError::ConflictOnWrite {
-                    path: path.to_string(),
-                    parent_commit_id: parent_commit.id().to_string(),
-                });
-            }
+        if head_commit.id() != parent_commit.id()
+            && !overwrite
+            && has_conflict(&repo, path, &parent_commit, &head_commit)?
+        {
+            return Err(GitDataStoreError::ConflictOnWrite {
+                path: path.to_string(),
+                parent_commit_id: parent_commit.id().to_string(),
+            });
         }
 
         let tree_oid = self.create_tree(&repo, path, data, &head_commit)?;
@@ -185,6 +164,86 @@ impl GitDataStore {
     pub fn history(&self) -> Result<HistoryIterator, GitDataStoreError> {
         let repo = Repository::open(&self.repo_path)?;
         history::git_log(repo)
+    }
+
+    pub fn delete(
+        &self,
+        parent_rev_id: &str,
+        path: &str,
+        overwrite: bool,
+    ) -> Result<String, GitDataStoreError> {
+        let repo = Repository::open(&self.repo_path)?;
+
+        let parent_rev = repo.revparse_single(parent_rev_id)?;
+        let parent_commit = parent_rev.peel_to_commit()?;
+
+        let _mutex = self.mutex.lock();
+        let main_ref = repo.find_reference(&format!("refs/heads/{}", self.primary_branch))?;
+
+        let head_commit = main_ref.peel_to_commit()?;
+
+        if head_commit.id() != parent_commit.id()
+            && !overwrite
+            && has_conflict(&repo, path, &parent_commit, &head_commit)?
+        {
+            return Err(GitDataStoreError::ConflictOnWrite {
+                path: path.to_string(),
+                parent_commit_id: parent_commit.id().to_string(),
+            });
+        }
+
+        let mut index = Index::new()?;
+        index.read_tree(&head_commit.tree()?)?;
+        repo.set_index(&mut index)?;
+
+        // https://libgit2.org/libgit2/#HEAD/type/git_index_stage_t
+        index.remove(&Path::new(path), -1)?;
+
+        let tree_oid = index.write_tree_to(&repo)?;
+
+        let tree = repo.find_tree(tree_oid)?;
+        let author_commiter = signature();
+
+        let commit_id = repo.commit(
+            Some(&format!("refs/heads/{}", self.primary_branch)),
+            &author_commiter,
+            &author_commiter,
+            "delete",
+            &tree,
+            &[&head_commit],
+        )?;
+        Ok(commit_id.to_string())
+    }
+
+    pub fn delete_latest(&self, path: &str) -> Result<String, GitDataStoreError> {
+        let repo = Repository::open(&self.repo_path)?;
+
+        let _mutex = self.mutex.lock();
+        let main_ref = repo.find_reference(&format!("refs/heads/{}", self.primary_branch))?;
+
+        let head_commit = main_ref.peel_to_commit()?;
+
+        let mut index = Index::new()?;
+        index.read_tree(&head_commit.tree()?)?;
+        repo.set_index(&mut index)?;
+
+        // https://libgit2.org/libgit2/#HEAD/type/git_index_stage_t
+        index.remove(&Path::new(path), -1)?;
+
+        let tree_oid = index.write_tree_to(&repo)?;
+
+        let tree = repo.find_tree(tree_oid)?;
+        let author_commiter = signature();
+
+        let commit_id = repo.commit(
+            Some(&format!("refs/heads/{}", self.primary_branch)),
+            &author_commiter,
+            &author_commiter,
+            "Delete latest",
+            &tree,
+            &[&head_commit],
+        )?;
+        Ok(commit_id.to_string())
     }
 
     fn create_tree(
@@ -282,4 +341,21 @@ fn read_entry_from_tree(
         data: git_data,
         commit_id: commit.id().to_string(),
     })
+}
+
+fn has_conflict(
+    repo: &Repository,
+    path: &str,
+    parent_commit: &Commit,
+    head_commit: &Commit,
+) -> Result<bool, GitDataStoreError> {
+    let mut diff_options = DiffOptions::new();
+    diff_options.pathspec(path);
+    let diff = repo.diff_tree_to_tree(
+        Some(&parent_commit.tree()?),
+        Some(&head_commit.tree()?),
+        Some(&mut diff_options),
+    )?;
+
+    Ok(diff.deltas().len() != 0)
 }
