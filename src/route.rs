@@ -9,7 +9,9 @@ pub async fn get_data(
     path_params: web::Path<(String, String)>,
 ) -> Result<HttpResponse, GitDataStoreError> {
     let (commit_id, file_path) = path_params.into_inner();
-    let git_data = store.read(&commit_id, &file_path)?;
+    let git_data = store
+        .read(&commit_id, &file_path)?
+        .ok_or_else(|| GitDataStoreError::PathNotFound(file_path.to_string()))?;
 
     Ok(HttpResponse::Ok().json(git_data))
 }
@@ -20,7 +22,9 @@ pub async fn get_latest_data(
     path_params: web::Path<(String,)>,
 ) -> Result<HttpResponse, GitDataStoreError> {
     let file_path = path_params.into_inner().0;
-    let git_data = store.read_latest(&file_path)?;
+    let git_data = store
+        .read_latest(&file_path)?
+        .ok_or_else(|| GitDataStoreError::PathNotFound(file_path.to_string()))?;
 
     Ok(HttpResponse::Ok().json(git_data))
 }

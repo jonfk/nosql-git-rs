@@ -1,4 +1,3 @@
-use anyhow::Result;
 use git_ops::{clone, GitDataStore};
 use tempfile::TempDir;
 
@@ -31,20 +30,28 @@ fn commit_and_read_test() {
         .put(&version_after_doc1, doc1_path, doc1_data_update, false)
         .expect("put doc1 update");
 
-    let doc1_latest_result = store.read_latest(doc1_path).expect("read_latest doc1");
+    let doc1_latest_result = store
+        .read_latest(doc1_path)
+        .expect("read_latest doc1")
+        .unwrap();
     let doc1_updated_result = store
         .read(&version_after_doc1_update, doc1_path)
-        .expect("read doc1");
+        .expect("read doc1")
+        .unwrap();
 
     assert_eq!(doc1_latest_result, doc1_updated_result);
     assert_eq!(doc1_latest_result.data, doc1_updated_result.data);
     assert!(doc1_latest_result.data.is_file());
     assert!(doc1_updated_result.data.is_file());
 
-    let doc2_latest_result = store.read_latest(doc2_path).expect("read_latest doc2");
+    let doc2_latest_result = store
+        .read_latest(doc2_path)
+        .expect("read_latest doc2")
+        .unwrap();
     let doc2_created_result = store
         .read(&version_after_doc2, doc2_path)
-        .expect("read doc2");
+        .expect("read doc2")
+        .unwrap();
 
     assert_eq!(doc2_latest_result.data, doc2_created_result.data);
     assert_eq!(doc2_latest_result.data.file().unwrap(), doc2_data);

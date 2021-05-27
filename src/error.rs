@@ -11,7 +11,7 @@ pub enum GitDataStoreError {
     RevNotFound(String),
 
     #[error("Path could not be found {}", .0)]
-    PathNotFound(String, git2::Error),
+    PathNotFound(String),
 
     #[error("Blob contains non-utf8 content. commit_id: {}, path: {}", .commit_id, .path)]
     NonUtf8Blob { commit_id: String, path: String },
