@@ -1,5 +1,5 @@
 use crate::{error::GitDataStoreError, history::HistoryEntry, GitDataStore};
-use actix_web::{get, post, put, web, HttpResponse};
+use actix_web::{body::Body, get, post, put, web, HttpResponse};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -9,11 +9,11 @@ pub async fn get_data(
     path_params: web::Path<(String, String)>,
 ) -> Result<HttpResponse, GitDataStoreError> {
     let (commit_id, file_path) = path_params.into_inner();
-    let git_data = store
-        .read(&commit_id, &file_path)?
-        .ok_or_else(|| GitDataStoreError::PathNotFound(file_path.to_string()))?;
 
-    Ok(HttpResponse::Ok().json(git_data))
+    Ok(match store.read(&commit_id, &file_path)? {
+        Some(git_data) => HttpResponse::Ok().json(git_data),
+        None => HttpResponse::NotFound().body(Body::None),
+    })
 }
 
 #[get("/{file_path:.*}")]
@@ -22,11 +22,10 @@ pub async fn get_latest_data(
     path_params: web::Path<(String,)>,
 ) -> Result<HttpResponse, GitDataStoreError> {
     let file_path = path_params.into_inner().0;
-    let git_data = store
-        .read_latest(&file_path)?
-        .ok_or_else(|| GitDataStoreError::PathNotFound(file_path.to_string()))?;
-
-    Ok(HttpResponse::Ok().json(git_data))
+    Ok(match store.read_latest(&file_path)? {
+        Some(git_data) => HttpResponse::Ok().json(git_data),
+        None => HttpResponse::NotFound().body(Body::None),
+    })
 }
 
 #[derive(Serialize, Deserialize)]

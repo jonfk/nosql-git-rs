@@ -305,12 +305,16 @@ fn read_entry_from_tree(
     let tree = commit.tree()?;
 
     let entry = match tree.get_path(Path::new(path)) {
-        Ok(entry) => Some(entry),
+        Ok(entry) => Ok(Some(entry)),
         Err(err) => {
             println!("{:?}", err);
-            None
-        },
-    };
+            if err.code() == git2::ErrorCode::NotFound {
+                Ok(None)
+            } else {
+                Err(err)
+            }
+        }
+    }?;
 
     entry
         .map(|entry| {

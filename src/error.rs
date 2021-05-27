@@ -10,9 +10,6 @@ pub enum GitDataStoreError {
     #[error("Invalid revision could not be found {}", .0)]
     RevNotFound(String),
 
-    #[error("Path could not be found {}", .0)]
-    PathNotFound(String),
-
     #[error("Blob contains non-utf8 content. commit_id: {}, path: {}", .commit_id, .path)]
     NonUtf8Blob { commit_id: String, path: String },
 
@@ -41,7 +38,6 @@ impl actix_web::error::ResponseError for GitDataStoreError {
             GitDataStoreError::Git2(..) => StatusCode::INTERNAL_SERVER_ERROR,
             GitDataStoreError::NonUtf8Blob { .. } => StatusCode::INTERNAL_SERVER_ERROR,
             GitDataStoreError::RevNotFound(..) => StatusCode::NOT_FOUND,
-            GitDataStoreError::PathNotFound(..) => StatusCode::NOT_FOUND,
             GitDataStoreError::ConflictOnWrite { .. } => StatusCode::CONFLICT,
         }
     }
