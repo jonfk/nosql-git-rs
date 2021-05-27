@@ -1,5 +1,5 @@
 [package]
-name = "git-ops"
+name = "nosql-git"
 version = "0.1.0"
 authors = ["Jonathan Fok kan <jfokkan@gmail.com>"]
 edition = "2018"

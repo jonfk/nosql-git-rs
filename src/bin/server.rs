@@ -6,7 +6,7 @@ extern crate slog_term;
 use actix_slog::StructuredLogger;
 use actix_web::{App, HttpServer};
 use clap::Clap;
-use git_ops::{clone, route, GitDataStore};
+use nosql_git::{clone, route, GitDataStore};
 use slog::Drain;
 use std::{path::Path, sync::Arc};
 

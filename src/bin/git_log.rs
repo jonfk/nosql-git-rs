@@ -1,4 +1,4 @@
-use git_ops::GitDataStore;
+use nosql_git::GitDataStore;
 
 pub fn main() {
     let store = GitDataStore::new("repo", "master");

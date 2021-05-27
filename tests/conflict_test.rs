@@ -1,4 +1,4 @@
-use git_ops::{clone, error::GitDataStoreError, GitDataStore};
+use nosql_git::{clone, error::GitDataStoreError, GitDataStore};
 use tempfile::TempDir;
 
 mod util;
