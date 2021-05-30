@@ -1,7 +1,6 @@
 use error::GitDataStoreError;
 use git2::{
     Commit, DiffOptions, FileMode, Index, IndexEntry, IndexTime, Oid, Reference, Repository,
-    Signature,
 };
 use history::HistoryIterator;
 use parking_lot::Mutex;
@@ -30,6 +29,16 @@ pub struct GitEntry {
 pub enum GitData {
     Dir { entries: Vec<String> },
     File { data: String },
+}
+pub struct Signature {
+    pub name: String,
+    pub email: String,
+}
+
+impl<'a> Into<Result<git2::Signature<'a>, git2::Error>> for &'a Signature {
+    fn into(self) -> Result<git2::Signature<'a>, git2::Error> {
+        git2::Signature::now(&self.name, &self.email)
+    }
 }
 
 impl GitData {
@@ -95,6 +104,8 @@ impl GitDataStore {
         path: &str,
         data: &str,
         overwrite: bool,
+        signature: Option<&Signature>,
+        commit_msg: Option<&str>,
     ) -> Result<String, GitDataStoreError> {
         // get last commit from primary branch and parent commit
         // if they are the same or the overwrite flag is set, create new commit with that as parent and update primary branch
@@ -124,20 +135,28 @@ impl GitDataStore {
         let tree_oid = self.create_tree(&repo, path, data, &head_commit)?;
         let tree = repo.find_tree(tree_oid)?;
 
-        let author_commiter = signature();
+        let author_commiter: git2::Signature = signature
+            .map(|s| s.into())
+            .unwrap_or_else(|| repo.signature())?;
 
         let commit_id = repo.commit(
             Some(&format!("refs/heads/{}", self.primary_branch)),
             &author_commiter,
             &author_commiter,
-            &format!("Update {}", path),
+            commit_msg.unwrap_or(format!("Updated {}", path).as_str()),
             &tree,
             &[&head_commit],
         )?;
         Ok(commit_id.to_string())
     }
 
-    pub fn put_latest(&self, path: &str, data: &str) -> Result<String, GitDataStoreError> {
+    pub fn put_latest(
+        &self,
+        path: &str,
+        data: &str,
+        signature: Option<&Signature>,
+        commit_msg: Option<&str>,
+    ) -> Result<String, GitDataStoreError> {
         let repo = Repository::open(&self.repo_path)?;
 
         let _mutex = self.mutex.lock();
@@ -148,13 +167,15 @@ impl GitDataStore {
         let tree_oid = self.create_tree(&repo, path, data, &head_commit)?;
 
         let tree = repo.find_tree(tree_oid)?;
-        let author_commiter = signature();
+        let author_commiter: git2::Signature = signature
+            .map(|s| s.into())
+            .unwrap_or_else(|| repo.signature())?;
 
         let commit_id = repo.commit(
             Some(&format!("refs/heads/{}", self.primary_branch)),
             &author_commiter,
             &author_commiter,
-            "Update latest",
+            commit_msg.unwrap_or(format!("Updated {}", path).as_str()),
             &tree,
             &[&head_commit],
         )?;
@@ -171,6 +192,8 @@ impl GitDataStore {
         parent_rev_id: &str,
         path: &str,
         overwrite: bool,
+        signature: Option<&Signature>,
+        commit_msg: Option<&str>,
     ) -> Result<String, GitDataStoreError> {
         let repo = Repository::open(&self.repo_path)?;
 
@@ -202,20 +225,27 @@ impl GitDataStore {
         let tree_oid = index.write_tree_to(&repo)?;
 
         let tree = repo.find_tree(tree_oid)?;
-        let author_commiter = signature();
+        let author_commiter: git2::Signature = signature
+            .map(|s| s.into())
+            .unwrap_or_else(|| repo.signature())?;
 
         let commit_id = repo.commit(
             Some(&format!("refs/heads/{}", self.primary_branch)),
             &author_commiter,
             &author_commiter,
-            "delete",
+            commit_msg.unwrap_or(format!("Deleted {}", path).as_str()),
             &tree,
             &[&head_commit],
         )?;
         Ok(commit_id.to_string())
     }
 
-    pub fn delete_latest(&self, path: &str) -> Result<String, GitDataStoreError> {
+    pub fn delete_latest(
+        &self,
+        path: &str,
+        signature: Option<&Signature>,
+        commit_msg: Option<&str>,
+    ) -> Result<String, GitDataStoreError> {
         let repo = Repository::open(&self.repo_path)?;
 
         let _mutex = self.mutex.lock();
@@ -233,13 +263,15 @@ impl GitDataStore {
         let tree_oid = index.write_tree_to(&repo)?;
 
         let tree = repo.find_tree(tree_oid)?;
-        let author_commiter = signature();
+        let author_commiter: git2::Signature = signature
+            .map(|s| s.into())
+            .unwrap_or_else(|| repo.signature())?;
 
         let commit_id = repo.commit(
             Some(&format!("refs/heads/{}", self.primary_branch)),
             &author_commiter,
             &author_commiter,
-            "Delete latest",
+            commit_msg.unwrap_or(format!("Deleted {}", path).as_str()),
             &tree,
             &[&head_commit],
         )?;
@@ -278,10 +310,6 @@ pub fn make_index_entry(path: &str) -> IndexEntry {
         flags_extended: 0,
         path: path.into(),
     }
-}
-
-fn signature() -> Signature<'static> {
-    Signature::now("GitDataStore", "gitdatastore@email.com").expect("Failed creating Signature")
 }
 
 pub fn create_branch<'repo>(

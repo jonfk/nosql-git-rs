@@ -31,7 +31,8 @@ pub async fn get_latest_data(
 #[derive(Serialize, Deserialize)]
 pub struct PutDataReq {
     data: String,
-    resolve_conflict_my_favor: Option<bool>,
+    overwrite: Option<bool>,
+    commit_msg: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -50,7 +51,9 @@ pub async fn put_data(
         &commit_id,
         &file_path,
         &data.data,
-        data.resolve_conflict_my_favor.unwrap_or(false),
+        data.overwrite.unwrap_or(false),
+        None,
+        data.commit_msg.as_deref(),
     )?;
 
     Ok(HttpResponse::Ok().json(PutDataResp {
@@ -65,7 +68,8 @@ pub async fn put_latest_data(
     data: web::Json<PutDataReq>,
 ) -> Result<HttpResponse, GitDataStoreError> {
     let file_path = path_params.into_inner().0;
-    let new_commit_id = store.put_latest(&file_path, &data.data)?;
+    let new_commit_id =
+        store.put_latest(&file_path, &data.data, None, data.commit_msg.as_deref())?;
 
     Ok(HttpResponse::Ok().json(PutDataResp {
         commit_id: new_commit_id,

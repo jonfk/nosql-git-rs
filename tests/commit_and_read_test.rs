@@ -14,20 +14,27 @@ fn commit_and_read_test() {
 
     let doc1_path = "docs/doc1";
     let version_after_doc1 = store
-        .put_latest(doc1_path, "test data 1")
+        .put_latest(doc1_path, "test data 1", None, None)
         .expect("put_latest doc1");
 
     let doc2_path = "docs/doc2";
     let doc2_data = "completely different data\nhello\nblah\n";
     let version_after_doc2 = store
-        .put(&version_after_doc1, doc2_path, doc2_data, false)
+        .put(&version_after_doc1, doc2_path, doc2_data, false, None, None)
         .expect("put doc2");
     println!("doc2 saved");
 
     let doc1_data_update = "new doc1 data updated\nnothing related to before";
 
     let version_after_doc1_update = store
-        .put(&version_after_doc1, doc1_path, doc1_data_update, false)
+        .put(
+            &version_after_doc1,
+            doc1_path,
+            doc1_data_update,
+            false,
+            None,
+            None,
+        )
         .expect("put doc1 update");
 
     let doc1_latest_result = store

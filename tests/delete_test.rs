@@ -13,14 +13,16 @@ fn delete_test() {
 
     let doc_path = "cods/docs/doc1.txt";
     let doc_version = store
-        .put_latest(doc_path, "testdata\nlorem ipsum\n")
+        .put_latest(doc_path, "testdata\nlorem ipsum\n", None, None)
         .expect("put_latest");
 
     let read_doc = store.read_latest(doc_path).expect("read_latest");
 
     assert!(read_doc.is_some());
 
-    let deleted_version = store.delete(&doc_version, doc_path, false).expect("delete");
+    let deleted_version = store
+        .delete(&doc_version, doc_path, false, None, None)
+        .expect("delete");
 
     let read_latest_deleted_doc = store.read_latest(doc_path).expect("read_latest");
 

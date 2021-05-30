@@ -13,16 +13,30 @@ fn conflict_test() {
 
     let doc1_path = "docs/doc1";
     let version_after_doc1 = store
-        .put_latest(doc1_path, "test data 1")
+        .put_latest(doc1_path, "test data 1", None, None)
         .expect("put_latest doc1");
 
     let doc1_path = "docs/doc1";
     let _version_after_update1_doc1 = store
-        .put(&version_after_doc1, doc1_path, "test data 2", false)
+        .put(
+            &version_after_doc1,
+            doc1_path,
+            "test data 2",
+            false,
+            None,
+            None,
+        )
         .expect("put 1 doc1");
 
     let doc1_path = "docs/doc1";
-    let update2_result = store.put(&version_after_doc1, doc1_path, "test data 3", false);
+    let update2_result = store.put(
+        &version_after_doc1,
+        doc1_path,
+        "test data 3",
+        false,
+        None,
+        None,
+    );
 
     assert!(update2_result.is_err());
     let conflict_err = update2_result.err().unwrap();
