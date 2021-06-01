@@ -1,5 +1,5 @@
 use crate::{error::GitDataStoreError, history::HistoryEntry, GitDataStore};
-use actix_web::{body::Body, get, post, put, web, HttpResponse};
+use actix_web::{body::Body, get, post,  web, HttpResponse, delete};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -16,7 +16,7 @@ pub async fn get_data(
     })
 }
 
-#[get("/{file_path:.*}")]
+#[get("/latest/{file_path:.*}")]
 pub async fn get_latest_data(
     store: web::Data<Arc<GitDataStore>>,
     path_params: web::Path<(String,)>,
@@ -40,7 +40,7 @@ pub struct PutDataResp {
     commit_id: String,
 }
 
-#[put("/{commit_id}/{file_path:.*}")]
+#[post("/commits/{commit_id}/{file_path:.*}")]
 pub async fn put_data(
     store: web::Data<Arc<GitDataStore>>,
     path_params: web::Path<(String, String)>,
@@ -61,7 +61,7 @@ pub async fn put_data(
     }))
 }
 
-#[post("/{file_path:.*}")]
+#[post("/latest/{file_path:.*}")]
 pub async fn put_latest_data(
     store: web::Data<Arc<GitDataStore>>,
     path_params: web::Path<(String,)>,
@@ -89,8 +89,8 @@ pub struct HistoryResp {
     has_next: bool,
 }
 
-#[get("/commits")]
-pub async fn commits(
+#[get("/history")]
+pub async fn history(
     store: web::Data<Arc<GitDataStore>>,
     web::Query(history_req): web::Query<HistoryReqQuery>,
 ) -> Result<HttpResponse, GitDataStoreError> {
@@ -115,5 +115,49 @@ pub async fn commits(
     Ok(HttpResponse::Ok().json(HistoryResp {
         entries: entries,
         has_next: has_next,
+    }))
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct DeleteReq {
+    overwrite: Option<bool>,
+    commit_msg: Option<String>,
+}
+
+#[delete("/commits/{commit_id}/{file_path:.*}")]
+pub async fn delete(
+    store: web::Data<Arc<GitDataStore>>,
+    path_params: web::Path<(String, String)>,
+    data: web::Json<PutDataReq>,
+) -> Result<HttpResponse, GitDataStoreError> {
+    let (commit_id, file_path) = path_params.into_inner();
+    let new_commit_id = store.delete(
+        &commit_id,
+        &file_path,
+        data.overwrite.unwrap_or(false),
+        None,
+        data.commit_msg.as_deref(),
+    )?;
+
+    Ok(HttpResponse::Ok().json(PutDataResp {
+        commit_id: new_commit_id,
+    }))
+}
+
+#[delete("/latest/{file_path:.*}")]
+pub async fn delete_latest(
+    store: web::Data<Arc<GitDataStore>>,
+    path_params: web::Path<(String,)>,
+    data: web::Json<DeleteReq>,
+) -> Result<HttpResponse, GitDataStoreError> {
+    let file_path = path_params.into_inner().0;
+    let new_commit_id = store.delete_latest(
+        &file_path,
+        None,
+        data.commit_msg.as_deref(),
+    )?;
+
+    Ok(HttpResponse::Ok().json(PutDataResp {
+        commit_id: new_commit_id,
     }))
 }
