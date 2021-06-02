@@ -120,6 +120,42 @@ local commonRequestParameters = {
         },
       },
     },
+    '/history': {
+      get: {
+        summary: 'Read history',
+        description: 'Read history of repository or a specific file.',
+        operationId: 'history',
+
+        parameters: [
+          {
+            'in': 'query',
+            name: 'first',
+            schema: {
+              type: 'integer',
+            },
+          },
+          {
+            'in': 'query',
+            name: 'after',
+            schema: {
+              type: 'integer',
+            },
+          },
+          {
+            'in': 'query',
+            name: 'path',
+            schema: {
+              type: 'string',
+            },
+          },
+        ],
+        responses: {
+          '200': {
+            '$ref': '#/components/responses/SuccessHistoryResponse',
+          },
+        },
+      },
+    },
   },
 
   components: {
@@ -186,6 +222,37 @@ local commonRequestParameters = {
         type: 'object',
         properties: commonRequestParameters,
       },
+      HistoryEntry: {
+        type: 'object',
+        properties: {
+          datetime: {
+            type: 'string',
+          },
+          commit_id: {
+            type: 'string',
+          },
+          message: {
+            type: 'string',
+          },
+          author: {
+            type: 'string',
+          },
+          stats: {
+            type: 'object',
+            properties: {
+              files_changed: {
+                type: 'integer',
+              },
+              insertions: {
+                type: 'integer',
+              },
+              deletions: {
+                type: 'integer',
+              },
+            },
+          },
+        },
+      },
     },
     requestBodies: {
       PostRequestBody: {
@@ -229,6 +296,24 @@ local commonRequestParameters = {
           'application/json': {
             schema: {
               '$ref': '#/components/schemas/PutDataResp',
+            },
+          },
+        },
+      },
+      SuccessHistoryResponse: {
+        description: 'Success',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                entries: {
+                  type: 'array',
+                  items: {
+                    '$ref': '#/components/schemas/HistoryEntry',
+                  },
+                },
+              },
             },
           },
         },
