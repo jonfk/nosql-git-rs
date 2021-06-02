@@ -1,13 +1,13 @@
 use std::{collections::HashMap, path::Path, time::Instant};
 
 use crate::error::GitDataStoreError;
-use chrono::{FixedOffset, TimeZone};
+use chrono::{DateTime, FixedOffset, TimeZone};
 use git2::{Commit, DiffOptions, Oid, Repository, Revwalk, Time};
 use serde::Serialize;
 
 #[derive(Serialize, Debug)]
 pub struct HistoryEntry {
-    pub timestamp_seconds: i64,
+    pub datetime: DateTime<FixedOffset>,
     pub commit_id: String,
     pub message: Option<String>,
     pub author: String,
@@ -273,8 +273,9 @@ fn map_rev(
         deletions: diff_stats.deletions(),
     };
 
+    let commit_time = commit.time();
     let x = Ok(HistoryEntry {
-        timestamp_seconds: commit.time().seconds(),
+        datetime: FixedOffset::east(commit_time.offset_minutes() * 60).timestamp(commit_time.seconds(), 0),
         commit_id: commit.id().to_string(),
         author: commit.author().to_string(),
         message: commit.message().map(|m| m.to_string()),

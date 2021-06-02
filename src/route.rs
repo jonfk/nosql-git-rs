@@ -86,7 +86,6 @@ pub struct HistoryReqQuery {
 #[derive(Serialize)]
 pub struct HistoryResp {
     entries: Vec<HistoryEntry>,
-    has_next: bool,
 }
 
 #[get("/history")]
@@ -108,13 +107,10 @@ pub async fn history(
             .take(history_req.first + 1)
             .collect()
     };
-    let mut entries = entries?;
-    let has_next = entries.len() == (history_req.first + 1);
-    entries.truncate(history_req.first);
+    let entries = entries?;
 
     Ok(HttpResponse::Ok().json(HistoryResp {
         entries: entries,
-        has_next: has_next,
     }))
 }
 
