@@ -21,18 +21,18 @@ pub struct GitDataStore {
     mutex: Mutex<()>,
 }
 
-#[derive(Debug, Serialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
 pub struct GitEntry {
     pub data: GitData,
     pub commit_id: String,
 }
-#[derive(Debug, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub enum GitData {
     Dir { entries: Vec<DirEntry> },
     File { data: String },
 }
 
-#[derive(Debug, Serialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
 pub struct DirEntry {
     pub is_dir: bool,
     #[serde(skip_serializing)]
@@ -40,6 +40,7 @@ pub struct DirEntry {
     pub name: Option<String>,
 }
 
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
 pub struct Signature {
     pub name: String,
     pub email: String,
