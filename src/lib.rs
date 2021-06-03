@@ -14,6 +14,7 @@ pub mod error;
 pub mod history;
 pub mod route;
 
+#[derive(Debug)]
 pub struct GitDataStore {
     repo_path: String,
     primary_branch: String,
@@ -27,9 +28,18 @@ pub struct GitEntry {
 }
 #[derive(Debug, Serialize, PartialEq, Eq)]
 pub enum GitData {
-    Dir { entries: Vec<String> },
+    Dir { entries: Vec<DirEntry> },
     File { data: String },
 }
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+pub struct DirEntry {
+    pub is_dir: bool,
+    #[serde(skip_serializing)]
+    pub name_bytes: Vec<u8>,
+    pub name: Option<String>,
+}
+
 pub struct Signature {
     pub name: String,
     pub email: String,
@@ -353,7 +363,18 @@ fn read_entry_from_tree(
                     GitData::Dir {
                         entries: tree
                             .into_iter()
-                            .filter_map(|e| e.name().map(|name| name.to_string()))
+                            .map(|e| {
+                                let is_dir = match e.kind().expect("TreeEntry should have kind") {
+                                    git2::ObjectType::Tree => true,
+                                    git2::ObjectType::Blob => false,
+                                    t => panic!("TreeEntry should only be of Tree or Blob, but is {}", t)
+                                };
+                                DirEntry {
+                                    name_bytes: e.name_bytes().to_vec(),
+                                    name: e.name().map(|n|n.to_string()),
+                                    is_dir
+                                }
+                            })
                             .collect(),
                     }
                 }
