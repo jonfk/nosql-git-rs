@@ -14,6 +14,8 @@ pub mod error;
 pub mod history;
 pub mod route;
 
+const ROOT_PATHS: &'static [&'static str] = &["", "/", "."];
+
 #[derive(Debug)]
 pub struct GitDataStore {
     repo_path: String,
@@ -336,6 +338,26 @@ pub fn create_branch<'repo>(
     )?)
 }
 
+fn tree_to_dir(tree: &git2::Tree) -> GitData {
+    GitData::Dir {
+        entries: tree
+            .into_iter()
+            .map(|e| {
+                let is_dir = match e.kind().expect("TreeEntry should have kind") {
+                    git2::ObjectType::Tree => true,
+                    git2::ObjectType::Blob => false,
+                    t => panic!("TreeEntry should only be of Tree or Blob, but is {}", t),
+                };
+                DirEntry {
+                    name_bytes: e.name_bytes().to_vec(),
+                    name: e.name().map(|n| n.to_string()),
+                    is_dir,
+                }
+            })
+            .collect(),
+    }
+}
+
 fn read_entry_from_tree(
     repo: &Repository,
     commit: &git2::Commit,
@@ -343,67 +365,59 @@ fn read_entry_from_tree(
 ) -> Result<Option<GitEntry>, GitDataStoreError> {
     let tree = commit.tree()?;
 
-    let entry = match tree.get_path(Path::new(path)) {
-        Ok(entry) => Ok(Some(entry)),
-        Err(err) => {
-            println!("{:?}", err);
-            if err.code() == git2::ErrorCode::NotFound {
-                Ok(None)
-            } else {
-                Err(err)
+    if ROOT_PATHS.contains(&path) {
+        Ok(Some(GitEntry{
+            data: tree_to_dir(&tree),
+            commit_id: commit.id().to_string(),}
+        )
+        )
+    } else {
+        let entry = match tree.get_path(Path::new(path)) {
+            Ok(entry) => Ok(Some(entry)),
+            Err(err) => {
+                println!("{:?}", err);
+                if err.code() == git2::ErrorCode::NotFound {
+                    Ok(None)
+                } else {
+                    Err(err)
+                }
             }
-        }
-    }?;
+        }?;
 
-    entry
-        .map(|entry| {
-            let git_data = match entry.kind().expect("tree entry does not have kind") {
-                git2::ObjectType::Tree => {
-                    let obj = entry.to_object(&repo)?;
-                    let tree = obj.as_tree().expect("tree is not a tree");
-                    GitData::Dir {
-                        entries: tree
-                            .into_iter()
-                            .map(|e| {
-                                let is_dir = match e.kind().expect("TreeEntry should have kind") {
-                                    git2::ObjectType::Tree => true,
-                                    git2::ObjectType::Blob => false,
-                                    t => panic!("TreeEntry should only be of Tree or Blob, but is {}", t)
-                                };
-                                DirEntry {
-                                    name_bytes: e.name_bytes().to_vec(),
-                                    name: e.name().map(|n|n.to_string()),
-                                    is_dir
+        entry
+            .map(|entry| {
+                let git_data = match entry.kind().expect("tree entry does not have kind") {
+                    git2::ObjectType::Tree => {
+                        let obj = entry.to_object(&repo)?;
+                        let tree = obj.as_tree().expect("tree is not a tree");
+                        tree_to_dir(&tree)
+                    }
+                    git2::ObjectType::Blob => {
+                        let obj = entry.to_object(&repo)?;
+                        let blob = obj.as_blob().expect("blob is not blob");
+
+                        // Should non-utf8 data be returned as base-64 encoded?
+                        GitData::File {
+                            data: String::from_utf8(blob.content().to_owned()).map_err(|_e| {
+                                GitDataStoreError::NonUtf8Blob {
+                                    commit_id: commit.id().to_string(),
+                                    path: path.to_string(),
                                 }
-                            })
-                            .collect(),
+                            })?,
+                        }
                     }
-                }
-                git2::ObjectType::Blob => {
-                    let obj = entry.to_object(&repo)?;
-                    let blob = obj.as_blob().expect("blob is not blob");
-
-                    // Should non-utf8 data be returned as base-64 encoded?
-                    GitData::File {
-                        data: String::from_utf8(blob.content().to_owned()).map_err(|_e| {
-                            GitDataStoreError::NonUtf8Blob {
-                                commit_id: commit.id().to_string(),
-                                path: path.to_string(),
-                            }
-                        })?,
+                    _ => {
+                        unreachable!("Impossible entry.kind() {:?}", entry.kind())
                     }
-                }
-                _ => {
-                    unreachable!("Impossible entry.kind() {:?}", entry.kind())
-                }
-            };
+                };
 
-            Ok(GitEntry {
-                data: git_data,
-                commit_id: commit.id().to_string(),
+                Ok(GitEntry {
+                    data: git_data,
+                    commit_id: commit.id().to_string(),
+                })
             })
-        })
-        .transpose()
+            .transpose()
+    }
 }
 
 fn has_conflict(
