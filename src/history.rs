@@ -275,7 +275,8 @@ fn map_rev(
 
     let commit_time = commit.time();
     let x = Ok(HistoryEntry {
-        datetime: FixedOffset::east(commit_time.offset_minutes() * 60).timestamp(commit_time.seconds(), 0),
+        datetime: FixedOffset::east(commit_time.offset_minutes() * 60)
+            .timestamp(commit_time.seconds(), 0),
         commit_id: commit.id().to_string(),
         author: commit.author().to_string(),
         message: commit.message().map(|m| m.to_string()),

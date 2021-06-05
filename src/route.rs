@@ -1,5 +1,5 @@
 use crate::{error::GitDataStoreError, history::HistoryEntry, GitDataStore};
-use actix_web::{body::Body, get, post,  web, HttpResponse, delete};
+use actix_web::{body::Body, delete, get, post, web, HttpResponse};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -109,9 +109,7 @@ pub async fn history(
     };
     let entries = entries?;
 
-    Ok(HttpResponse::Ok().json(HistoryResp {
-        entries: entries,
-    }))
+    Ok(HttpResponse::Ok().json(HistoryResp { entries: entries }))
 }
 
 #[derive(Serialize, Deserialize)]
@@ -147,11 +145,7 @@ pub async fn delete_latest(
     data: web::Json<DeleteReq>,
 ) -> Result<HttpResponse, GitDataStoreError> {
     let file_path = path_params.into_inner().0;
-    let new_commit_id = store.delete_latest(
-        &file_path,
-        None,
-        data.commit_msg.as_deref(),
-    )?;
+    let new_commit_id = store.delete_latest(&file_path, None, data.commit_msg.as_deref())?;
 
     Ok(HttpResponse::Ok().json(PutDataResp {
         commit_id: new_commit_id,

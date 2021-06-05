@@ -28,6 +28,7 @@ pub struct GitEntry {
     pub data: GitData,
     pub commit_id: String,
 }
+
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub enum GitData {
     Dir { entries: Vec<DirEntry> },
@@ -366,11 +367,10 @@ fn read_entry_from_tree(
     let tree = commit.tree()?;
 
     if ROOT_PATHS.contains(&path) {
-        Ok(Some(GitEntry{
+        Ok(Some(GitEntry {
             data: tree_to_dir(&tree),
-            commit_id: commit.id().to_string(),}
-        )
-        )
+            commit_id: commit.id().to_string(),
+        }))
     } else {
         let entry = match tree.get_path(Path::new(path)) {
             Ok(entry) => Ok(Some(entry)),
